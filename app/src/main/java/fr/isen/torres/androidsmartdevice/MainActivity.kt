@@ -44,6 +44,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+
 @Composable
 fun MainContentComponent(innerPadding: PaddingValues, onButtonClick: () -> Unit) {
     Column {
