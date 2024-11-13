@@ -1,6 +1,8 @@
 package fr.isen.torres.androidsmartdevice
 
 import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.app.ActivityCompat
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
@@ -8,7 +10,6 @@ import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothProfile
-import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
@@ -21,7 +22,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.core.app.ActivityCompat
 
 class DeviceActivity : ComponentActivity() {
 
@@ -105,7 +105,7 @@ class DeviceActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         if (ActivityCompat.checkSelfPermission(
-                this@DeviceActivity,
+                this,
                 Manifest.permission.BLUETOOTH_CONNECT
             ) != PackageManager.PERMISSION_GRANTED
         )

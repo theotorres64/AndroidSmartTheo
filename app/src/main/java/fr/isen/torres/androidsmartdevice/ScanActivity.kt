@@ -95,7 +95,7 @@ class ScanActivity : ComponentActivity() {
     // Stop Bluetooth scanning
     private fun stopScan() {
         if (ActivityCompat.checkSelfPermission(
-                this,
+                this@ScanActivity,
                 Manifest.permission.BLUETOOTH_SCAN
             ) != PackageManager.PERMISSION_GRANTED
         )
