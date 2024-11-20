@@ -92,7 +92,7 @@ class DeviceActivity : ComponentActivity() {
                     button1Characteristic = services?.get(2)?.characteristics?.get(1)
                     button3Characteristic = services?.get(3)?.characteristics?.get(0)
 
-                    // Subscribe to notifications for button presses (button1 and button3)
+
                     // Subscribe to notifications for button presses (button1 and button3)
                     if (button1Characteristic != null) {
                         gatt.setCharacteristicNotification(button1Characteristic, true)
