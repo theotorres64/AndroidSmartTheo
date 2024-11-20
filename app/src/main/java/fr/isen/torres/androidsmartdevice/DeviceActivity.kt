@@ -8,8 +8,11 @@ import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothProfile
+import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.os.Vibrator
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -44,29 +47,34 @@ class DeviceActivity : ComponentActivity() {
     private var bluetoothGatt: BluetoothGatt? = null
     private var bluetoothDevice: BluetoothDevice? = null
     private var ledCharacteristic: BluetoothGattCharacteristic? = null
+    private var button1Characteristic: BluetoothGattCharacteristic? = null
+    private var button3Characteristic: BluetoothGattCharacteristic? = null
 
+    // Variable to track the button click count
+    private var clickCount by mutableStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Récupérer les données envoyées depuis ScanActivity
+        // Retrieve the data passed from ScanActivity
         val deviceName = intent.getStringExtra("deviceName")
         val deviceAddress = intent.getStringExtra("deviceAddress")
 
-        // Initialiser l'appareil Bluetooth
+        // Initialize the Bluetooth device
         bluetoothDevice = BluetoothAdapter.getDefaultAdapter().getRemoteDevice(deviceAddress)
 
         setContent {
-            DeviceScreen(deviceName = deviceName, deviceAddress = deviceAddress)
+            DeviceScreen(deviceName = deviceName, deviceAddress = deviceAddress, clickCount = clickCount)
         }
     }
 
     @SuppressLint("MissingPermission")
     private fun connectToDevice() {
+        vibratePhone()
         bluetoothGatt = bluetoothDevice?.connectGatt(this, false, object : BluetoothGattCallback() {
             override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
-                    Log.d("BLE", "Connected to GATT server. Discovering services...")
+                    Log.d("BLE", "Connected GATT server. Discovering services...")
                     gatt.discoverServices()
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     Log.d("BLE", "Disconnected from GATT server.")
@@ -76,8 +84,17 @@ class DeviceActivity : ComponentActivity() {
             override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
                 if (status == BluetoothGatt.GATT_SUCCESS) {
                     val services = gatt.services
-                    // Assuming characteristics are at index 2, 3, 4 for LED 1, LED 2, LED 3
                     ledCharacteristic = services?.get(2)?.characteristics?.get(0)
+                    button1Characteristic = services?.get(2)?.characteristics?.get(1)
+                    button3Characteristic = services?.get(3)?.characteristics?.get(0)
+
+                    // Subscribe to notifications for button presses (button1 and button3)
+                    if (button1Characteristic != null) {
+                        gatt.setCharacteristicNotification(button1Characteristic, true)
+                    }
+                    if (button3Characteristic != null) {
+                        gatt.setCharacteristicNotification(button3Characteristic, true)
+                    }
 
                     Log.d("BLE", "Services discovered: ${services.map { it.uuid }}")
                 } else {
@@ -85,11 +102,16 @@ class DeviceActivity : ComponentActivity() {
                 }
             }
 
-            override fun onCharacteristicWrite(
-                gatt: BluetoothGatt,
-                characteristic: BluetoothGattCharacteristic,
-                status: Int
-            ) {
+            override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
+                super.onCharacteristicChanged(gatt, characteristic)
+                // Check if the notification is for the button1 or button3 characteristic
+                if (characteristic == button1Characteristic || characteristic == button3Characteristic) {
+                    incrementClickCount()  // Increment the button press count
+                    Log.d("BLE", "Button pressed, incrementing count.")
+                }
+            }
+
+            override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
                 if (status == BluetoothGatt.GATT_SUCCESS) {
                     Log.d("BLE", "Characteristic written successfully: ${characteristic.uuid}")
                 } else {
@@ -111,11 +133,7 @@ class DeviceActivity : ComponentActivity() {
     private fun writeToLEDCharacteristic(state: LEDStateEnum) {
         if (ledCharacteristic != null) {
             ledCharacteristic?.value = state.hex
-            if (ActivityCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.BLUETOOTH_CONNECT
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
                 // Handle missing permission
                 return
             }
@@ -126,8 +144,12 @@ class DeviceActivity : ComponentActivity() {
         }
     }
 
+    private fun incrementClickCount() {
+        clickCount += 1
+    }
+
     @Composable
-    fun DeviceScreen(deviceName: String?, deviceAddress: String?) {
+    fun DeviceScreen(deviceName: String?, deviceAddress: String?, clickCount: Int) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -168,9 +190,21 @@ class DeviceActivity : ComponentActivity() {
             ) {
                 Text("Disconnect from Device")
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Display the click count
+            Text("Button pressed $clickCount times", fontSize = 18.sp)
         }
     }
-
+    private fun vibratePhone() {
+        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(android.os.VibrationEffect.createOneShot(1000, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            vibrator.vibrate(1000)
+        }
+    }
     @Composable
     fun LedControlButton(ledNumber: Int, ledOnState: LEDStateEnum, ledOffState: LEDStateEnum) {
         val ledOn = painterResource(id = R.drawable.led_on)  // Replace with your LED ON .png file
