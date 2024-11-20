@@ -14,6 +14,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -21,20 +22,29 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
 
+
 class DeviceActivity : ComponentActivity() {
     private var bluetoothGatt: BluetoothGatt? = null
     private var bluetoothDevice: BluetoothDevice? = null
     private var ledCharacteristic: BluetoothGattCharacteristic? = null
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -66,7 +76,9 @@ class DeviceActivity : ComponentActivity() {
             override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
                 if (status == BluetoothGatt.GATT_SUCCESS) {
                     val services = gatt.services
+                    // Assuming characteristics are at index 2, 3, 4 for LED 1, LED 2, LED 3
                     ledCharacteristic = services?.get(2)?.characteristics?.get(0)
+
                     Log.d("BLE", "Services discovered: ${services.map { it.uuid }}")
                 } else {
                     Log.e("BLE", "Service discovery failed with status $status")
@@ -104,13 +116,7 @@ class DeviceActivity : ComponentActivity() {
                     Manifest.permission.BLUETOOTH_CONNECT
                 ) != PackageManager.PERMISSION_GRANTED
             ) {
-                // TODO: Consider calling
-                //    ActivityCompat#requestPermissions
-                // here to request the missing permissions, and then overriding
-                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                //                                          int[] grantResults)
-                // to handle the case where the user grants the permission. See the documentation
-                // for ActivityCompat#requestPermissions for more details.
+                // Handle missing permission
                 return
             }
             bluetoothGatt?.writeCharacteristic(ledCharacteristic)
@@ -120,7 +126,6 @@ class DeviceActivity : ComponentActivity() {
         }
     }
 
-    @SuppressLint("MissingPermission")
     @Composable
     fun DeviceScreen(deviceName: String?, deviceAddress: String?) {
         Column(
@@ -139,6 +144,7 @@ class DeviceActivity : ComponentActivity() {
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            // Button to connect to device
             Button(
                 onClick = { connectToDevice() },
                 modifier = Modifier.fillMaxWidth().padding(8.dp)
@@ -148,30 +154,52 @@ class DeviceActivity : ComponentActivity() {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Button(
-                onClick = { writeToLEDCharacteristic(LEDStateEnum.LED_1) },
-                modifier = Modifier.fillMaxWidth().padding(8.dp)
-            ) {
-                Text("Turn On LED 1")
-            }
+            // Buttons to control LED 1, 2, 3
+            LedControlButton(1, LEDStateEnum.LED_1, LEDStateEnum.NONE)
+            LedControlButton(2, LEDStateEnum.LED_2, LEDStateEnum.NONE)
+            LedControlButton(3, LEDStateEnum.LED_3, LEDStateEnum.NONE)
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Button(
-                onClick = { writeToLEDCharacteristic(LEDStateEnum.NONE) },
-                modifier = Modifier.fillMaxWidth().padding(8.dp)
-            ) {
-                Text("Turn Off LED")
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
+            // Button to disconnect from device
             Button(
                 onClick = { disconnectFromDevice() },
                 modifier = Modifier.fillMaxWidth().padding(8.dp)
             ) {
                 Text("Disconnect from Device")
             }
+        }
+    }
+
+    @Composable
+    fun LedControlButton(ledNumber: Int, ledOnState: LEDStateEnum, ledOffState: LEDStateEnum) {
+        val ledOn = painterResource(id = R.drawable.led_on)  // Replace with your LED ON .png file
+        val ledOff = painterResource(id = R.drawable.led_off)  // Replace with your LED OFF .png file
+        var ledState by remember { mutableStateOf(false) }
+
+        // Fixed size for the button and image
+        val buttonSize = 100.dp
+        val imageSize = 50.dp
+
+        Button(
+            onClick = {
+                ledState = !ledState
+                // Toggle between the states of the LED
+                val state = if (ledState) ledOnState else ledOffState
+                writeToLEDCharacteristic(state)  // Send the command to the device
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
+                .height(buttonSize)  // Ensure uniform button size
+        ) {
+            Image(
+                painter = if (ledState) ledOn else ledOff,
+                contentDescription = "LED $ledNumber",
+                modifier = Modifier.size(imageSize)  // Ensure uniform image size
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Control LED $ledNumber")
         }
     }
 

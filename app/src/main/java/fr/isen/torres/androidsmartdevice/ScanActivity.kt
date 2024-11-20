@@ -40,6 +40,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -72,6 +74,7 @@ class ScanActivity : ComponentActivity() {
         }
     }
 }
+
 @SuppressLint("MissingPermission")
 @Composable
 fun ScanBleScreen(
@@ -83,6 +86,7 @@ fun ScanBleScreen(
     var isScanning by remember { mutableStateOf(false) }
     var detectedDevices = remember { mutableStateListOf<ScanResult>() }
     var showBluetoothDialog by remember { mutableStateOf(false) }
+    var isScanInProgress by remember { mutableStateOf(false) }  // For progress bar visibility
     val context = LocalContext.current
 
     val permissionsLauncher = rememberLauncherForActivityResult(
@@ -102,8 +106,10 @@ fun ScanBleScreen(
         if (bluetoothAdapter?.isEnabled == true) {
             isScanning = !isScanning
             if (isScanning) {
+                isScanInProgress = true
                 startBleScan(bluetoothLeScanner, detectedDevices)
             } else {
+                isScanInProgress = false
                 stopBleScan(bluetoothLeScanner)
             }
         } else {
@@ -186,8 +192,19 @@ fun ScanBleScreen(
             color = if (isScanning) Color.Blue else Color.Gray
         )
 
+        // Afficher la barre de progression pendant le scan
+        if (isScanInProgress) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
         Spacer(modifier = Modifier.height(32.dp))
 
+        // Liste des périphériques détectés
         LazyColumn {
             items(detectedDevices) { result ->
                 val signalStrength = result.rssi
@@ -215,7 +232,6 @@ fun ScanBleScreen(
     }
 }
 
-
 @Composable
 fun DeviceItem(
     deviceName: String,
@@ -231,7 +247,6 @@ fun DeviceItem(
             .fillMaxWidth()
             .padding(8.dp)
             .clickable {
-                // Vérifiez ici que l'intent est bien configuré pour démarrer DeviceActivity
                 val intent = Intent(context, DeviceActivity::class.java).apply {
                     putExtra("deviceName", deviceName)  // Pass the device name
                     putExtra("deviceAddress", deviceAddress)  // Pass the device address
@@ -251,7 +266,6 @@ fun DeviceItem(
         Text(text = "Signal : $signalStrength dBm", fontSize = 14.sp, color = Color.Gray)
     }
 }
-
 
 @SuppressLint("MissingPermission")
 fun startBleScan(bluetoothLeScanner: BluetoothLeScanner?, detectedDevices: MutableList<ScanResult>) {
@@ -303,4 +317,3 @@ fun BluetoothAlertDialog(
         }
     }
 }
-
