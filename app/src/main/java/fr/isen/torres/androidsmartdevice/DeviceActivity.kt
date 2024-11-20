@@ -7,6 +7,7 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.content.pm.PackageManager
@@ -41,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
+import java.util.UUID
 
 
 class DeviceActivity : ComponentActivity() {
@@ -49,7 +51,8 @@ class DeviceActivity : ComponentActivity() {
     private var ledCharacteristic: BluetoothGattCharacteristic? = null
     private var button1Characteristic: BluetoothGattCharacteristic? = null
     private var button3Characteristic: BluetoothGattCharacteristic? = null
-
+    private var notificationCount by mutableStateOf(0)
+    private var notificationCount2 by mutableStateOf(0)
     // Variable to track the button click count
     private var clickCount by mutableStateOf(0)
 
@@ -71,13 +74,14 @@ class DeviceActivity : ComponentActivity() {
     @SuppressLint("MissingPermission")
     private fun connectToDevice() {
         vibratePhone()
+        Toast.makeText(this, "Connecté à l'appareil", Toast.LENGTH_SHORT).show()
         bluetoothGatt = bluetoothDevice?.connectGatt(this, false, object : BluetoothGattCallback() {
             override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
-                    Log.d("BLE", "Connected GATT server. Discovering services...")
+                    Log.d("BLE", "Connecté au serveur GATT. Discovering services...")
                     gatt.discoverServices()
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                    Log.d("BLE", "Disconnected from GATT server.")
+                    Log.d("BLE", "Déconnecteé du serveur GATT.")
                 }
             }
 
@@ -89,33 +93,50 @@ class DeviceActivity : ComponentActivity() {
                     button3Characteristic = services?.get(3)?.characteristics?.get(0)
 
                     // Subscribe to notifications for button presses (button1 and button3)
+                    // Subscribe to notifications for button presses (button1 and button3)
                     if (button1Characteristic != null) {
                         gatt.setCharacteristicNotification(button1Characteristic, true)
+                        // Enable notifications for button1
+                        val descriptor1 = button1Characteristic?.getDescriptor(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                        descriptor1?.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                        gatt.writeDescriptor(descriptor1)
+                        Log.d("BLE", "Subscribed to button 1 notifications.")
                     }
                     if (button3Characteristic != null) {
                         gatt.setCharacteristicNotification(button3Characteristic, true)
+                        // Enable notifications for button3
+                        val descriptor3 = button3Characteristic?.getDescriptor(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                        descriptor3?.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                        gatt.writeDescriptor(descriptor3)
+                        Log.d("BLE", "Subscribed to button 3 notifications.")
                     }
 
-                    Log.d("BLE", "Services discovered: ${services.map { it.uuid }}")
+
+
+                Log.d("BLE", "Services discovered: ${services.map { it.uuid }}")
                 } else {
-                    Log.e("BLE", "Service discovery failed with status $status")
+                    Log.e("BLE", "Service discovery échoue avec statue d'erreur : $status")
                 }
             }
 
             override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
                 super.onCharacteristicChanged(gatt, characteristic)
                 // Check if the notification is for the button1 or button3 characteristic
-                if (characteristic == button1Characteristic || characteristic == button3Characteristic) {
-                    incrementClickCount()  // Increment the button press count
-                    Log.d("BLE", "Button pressed, incrementing count.")
+                if (characteristic == button1Characteristic) {
+                    notificationCount++
+                    Log.d("BLE", "Notification reçu. Nombre: $notificationCount")
+                }
+                if (characteristic == button3Characteristic) {
+                    notificationCount2++
+                    Log.d("BLE", "Notification reçu. Nombre: $notificationCount2")
                 }
             }
 
             override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
                 if (status == BluetoothGatt.GATT_SUCCESS) {
-                    Log.d("BLE", "Characteristic written successfully: ${characteristic.uuid}")
+                    Log.d("BLE", "caracteristique écrite avec succès: ${characteristic.uuid}")
                 } else {
-                    Log.e("BLE", "Failed to write characteristic: ${characteristic.uuid}")
+                    Log.e("BLE", "Erreur d'écriture de caracteristique: ${characteristic.uuid}")
                 }
             }
         })
@@ -126,8 +147,8 @@ class DeviceActivity : ComponentActivity() {
         bluetoothGatt?.disconnect()
         bluetoothGatt?.close()
         bluetoothGatt = null
-        Log.d("BLE", "Disconnected from device.")
-        Toast.makeText(this, "Disconnected from device", Toast.LENGTH_SHORT).show()
+        Log.d("BLE", "Déconnecté de l'appareil.")
+        Toast.makeText(this, "Déconnecté de l'appareil", Toast.LENGTH_SHORT).show()
     }
 
     private fun writeToLEDCharacteristic(state: LEDStateEnum) {
@@ -138,15 +159,23 @@ class DeviceActivity : ComponentActivity() {
                 return
             }
             bluetoothGatt?.writeCharacteristic(ledCharacteristic)
-            Log.d("BLE", "LED state set to: ${state.name}")
+            Log.d("BLE", "LED state: ${state.name}")
         } else {
             Log.e("BLE", "LED characteristic not found.")
         }
     }
 
-    private fun incrementClickCount() {
-        clickCount += 1
+    private fun BluetoothGattCharacteristic?.getDescriptor(enableNotificationValue: ByteArray?): BluetoothGattDescriptor? {
+        if (this == null) return null
+
+        // Récupère le Client Characteristic Configuration Descriptor (CCCD)
+        val descriptor = this.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"))
+        if (descriptor != null) {
+            descriptor.value = enableNotificationValue
+        }
+        return descriptor
     }
+
 
     @Composable
     fun DeviceScreen(deviceName: String?, deviceAddress: String?, clickCount: Int) {
@@ -157,12 +186,12 @@ class DeviceActivity : ComponentActivity() {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text("Device Info", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text("Info de l'appareil", fontSize = 24.sp, fontWeight = FontWeight.Bold)
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Text("Name: ${deviceName ?: "Unknown"}")
-            Text("Address: ${deviceAddress ?: "Unknown"}")
+            Text("Nom: ${deviceName ?: "Inconnue"}")
+            Text("Adresse: ${deviceAddress ?: "Inconnue"}")
 
             Spacer(modifier = Modifier.height(32.dp))
 
@@ -171,7 +200,7 @@ class DeviceActivity : ComponentActivity() {
                 onClick = { connectToDevice() },
                 modifier = Modifier.fillMaxWidth().padding(8.dp)
             ) {
-                Text("Connect to Device")
+                Text("Connecté à l'appareil")
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -188,13 +217,15 @@ class DeviceActivity : ComponentActivity() {
                 onClick = { disconnectFromDevice() },
                 modifier = Modifier.fillMaxWidth().padding(8.dp)
             ) {
-                Text("Disconnect from Device")
+                Text("Déconnecté de l'appareil")
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             // Display the click count
-            Text("Button pressed $clickCount times", fontSize = 18.sp)
+            Text("Bouton1 presser $notificationCount fois", fontSize = 18.sp)
+            // Display the click count
+            Text("Bouton3 presser $notificationCount2 fois", fontSize = 18.sp)
         }
     }
     private fun vibratePhone() {
@@ -233,7 +264,7 @@ class DeviceActivity : ComponentActivity() {
                 modifier = Modifier.size(imageSize)  // Ensure uniform image size
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Control LED $ledNumber")
+            Text("Controle LED $ledNumber")
         }
     }
 
